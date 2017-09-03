@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[])
 {
-    Streamer s(3851, "http://192.168.1.11:8001/live");
+    Streamer s(3851, 0);
     s.start();
     return 0;
 }
