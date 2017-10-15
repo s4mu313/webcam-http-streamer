@@ -6,18 +6,23 @@
 #include <iostream>
 #include "camera.h"
 #include <thread>
+#include <array>
+#include <atomic>
 
 
-class Streamer {
-
+class Streamer {  
 private:
+    static const int MAX_CONNECTIONS = 16;
     int server, client;
     struct sockaddr_in serverAddress, clientAddress;
     Camera* camera;
+    std::thread* threadList[MAX_CONNECTIONS];
+    std::array<std::atomic<bool>, MAX_CONNECTIONS> threadTerminated;
 
     void error(std::string msg);
     void bindChannel();
-    static void stream(Camera &cam, int socket);
+    void stream(int socket, int index);
+    int getFirstFreePos();
 
 public:
     void start();
