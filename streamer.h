@@ -10,7 +10,8 @@
 
 #include <iostream>
 #include <mutex>
-#include <future>
+#include <atomic>
+#include <thread>
 
 
 //---------------------------------- Print error -----------------------------------------
@@ -49,7 +50,7 @@ sockaddr_in init_server(uint16_t port) {
     sockaddr_in s;
     bzero(reinterpret_cast<char*>(&s), sizeof(s));
     s.sin_family = PF_INET;
-    s.sin_addr.s_addr = inet_addr("127.0.0.1");
+    s.sin_addr.s_addr = inet_addr("0.0.0.0");
     s.sin_port = htons(port);
     return s;
 }
@@ -77,33 +78,6 @@ public:
     }
 };
 
-//---------------------------------- Some functions ----------------------------------------
-
-/**
- * @brief is_ready
- * @param f
- * @return true if the std::future has complete its compute, false otherwise
- */
-template<typename T>
-bool is_ready(std::future<T> const& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
-
-static const int nullpos = -1;
-
-/**
- * @brief first_free
- * @param f
- * @return the position of the first free std::future in a container
- */
-template<typename V>
-int first_free(V& f) {
-    for (size_t i = 0; i < f.size(); ++i)
-        if (is_ready(f[i])) {
-            f[i].get();
-            return int(i);
-        }
-    return nullpos;
-}
-
 //---------------------------------- Streamer class -----------------------------------------
 
 /**
@@ -115,9 +89,14 @@ private:
     Camera cam;
     int server, client;
     sockaddr_in s_addr, c_addr;
+
     std::thread t;
+    std::vector<std::thread*> tasks;
+    std::vector<std::atomic<bool>*> ended_t;
+    size_t get_pos();
+
     void bind_channel() { if (bind(server, reinterpret_cast<sockaddr*>(&s_addr), sizeof(s_addr)) < 0) error("binding_failed"); }
-    void send_datas(int socket);
+    void send_datas(int socket, size_t pos);
     void run();
 
 public:
@@ -125,32 +104,40 @@ public:
     void stop() { shutdown(server, SHUT_RDWR); t.join(); }
     Streamer(uint16_t port, int cam_addr) : cam(cam_addr), server(socket(PF_INET, SOCK_STREAM, 0)), s_addr(init_server(port)) {}
     Streamer(uint16_t port, std::string cam_addr) : cam(cam_addr), server(socket(PF_INET, SOCK_STREAM, 0)), s_addr(init_server(port)) {}
-
+    ~Streamer() { for (size_t i = 0; i < tasks.size(); ++i) { if (tasks[i]->joinable()) tasks[i]->join(); delete tasks[i]; delete ended_t[i];}}
 };
 
-void Streamer::send_datas(int socket) {
+size_t Streamer::get_pos() {
+    for (size_t i = 0; i < tasks.size(); ++i)
+        if (*ended_t[i]) {
+            if (tasks[i]->joinable())
+                tasks[i]->join();
+            *ended_t[i] = false;
+            return i;
+        }
+    tasks.push_back(nullptr);
+    ended_t.push_back(new std::atomic_bool(false));
+    return tasks.size() - 1;
+}
+
+void Streamer::send_datas(int socket, size_t pos) {
     std::string image, buffer = HEADER;
     while ((send(socket, buffer.c_str(), buffer.size(), MSG_NOSIGNAL)) > 0) {
         image = cam.jpg_encode();
         buffer = BODY + std::to_string(image.size()) + "\r\n\r\n" + image;
     }
+    *ended_t[pos] = true;
     close(socket);
 }
 
 void Streamer::run() {
-    std::vector<std::future<void>> tasks;
     while(true) {
         socklen_t c_length = sizeof(c_addr);
         if ((client = accept(server, reinterpret_cast<sockaddr*>(&c_addr), &c_length)) > 0) {
-            if (int pos = first_free(tasks) == nullpos)
-                tasks.push_back(std::async(std::launch::async, &Streamer::send_datas, this, client));
-            else
-                tasks[static_cast<size_t>(pos)] = std::async(std::launch::async, &Streamer::send_datas, this, client);
-        } else {
-            for (auto& e : tasks)
-                e.get();
+            size_t p = get_pos();
+            tasks[p] = new std::thread(&Streamer::send_datas, this, client, p);
+        } else
             break;
-        }
     }
     close(server);
 }

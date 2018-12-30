@@ -4,17 +4,17 @@
 
 int main(int argc, char *argv[])
 {
-    int port, cam_id;
+    uint16_t port, cam_id;
     if (argc > 2) {
-        port = std::atoi(argv[1]);
-        cam_id = std::atoi(argv[2]);
+        port = static_cast<uint16_t>(std::atoi(argv[1]));
+        cam_id = static_cast<uint16_t>(std::atoi(argv[2]));
         std::cout << "Binding camera on port: " << port << std::endl;
-        Streamer s(3852, "http://192.168.1.67:3851");
+
+        Streamer s(port, cam_id);
         s.start();
 
-        std::string str;
         std::cout << "Write something to exit" << std::endl;
-        std::cin >> str;
+        std::cin.get();
 
         s.stop();
 
