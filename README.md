@@ -27,9 +27,9 @@ HEADERS += \
     streamer.h
 ```
 
-##Usage
+## Usage
 
-###To create the server
+### To create the server
 
 cam_id is the number of the device connected to USB (ID are sequential: 0, 1, 2,...)
 
@@ -40,7 +40,7 @@ size_t port = 1234;
 Streamer s(port, cam_id);
 ```
 
-###To start and stop the server
+### To start and stop the server
 
 Start() is asynchronous, when you call it, the server launch a thread to receive the request and send response
 
