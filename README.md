@@ -1,5 +1,5 @@
 # webcam-http-streamer
-Create MJPG streaming using C socket and OpenCV with C++
+A simple C++ MJPEG streamer with C socket and OpenCV
 
 ## How to compile on Raspberry PI with ArchLinux installed
 In this project std::thread and OpenCV has been used so you must add lib references to the compiler (and install necessary dependences).
