@@ -31,21 +31,57 @@ HEADERS += \
 
 ### To create the server
 
-cam_id is the number of the device connected to USB (ID are sequential: 0, 1, 2,...)
 
 ```
-size_t cam_id = 0; 
-size_t port = 1234;
+std::size_t port = 5555;
 
-Streamer s(port, cam_id);
+http::Server s(port);
 ```
 
-### To start and stop the server
-
-Start() is asynchronous, when you call it, the server launch a thread to receive the request and send response
+### Adding paths to the server
 
 ```
-s.start();
-...
-s.stop();
+
+std::size_t n = 3;
+
+s.get("/", [] (auto req, auto res) {
+    for (const auto& h : req.headers()) {
+        std::cout << h << std::endl;           /// Access to the headers
+    }
+}).get("/path", [&] (auto req, auto res) {
+    n = 5;                                     /// Access to n by putting & in the lambda capture
+}).get("/other", [] (auto req, auto res) {
+
+    res >> "<html>"                            /// send header + message with osstream operator
+           "    <body>"
+           "        <h1>OTHER</h1>"
+           "    </body>"
+           "</html>";
+           
+           
+    if (!res.send_msg("--boundary\r\n"         /// send just the message
+                      "Content-Type: image/jpeg\r\n"
+                      "Content-Length: " +
+                      std::to_string(image.size()) +
+                      "\r\n\r\n" +
+                      image))
+        return;
+
+    res.headers.push_back("Max-Age: 0");        /// Add some headers
+    res.headers.push_back("Expires: 0");
+    res.headers.push_back("Pragma: no-cache");
+
+    if (!res.send_header())                     /// Send just headers
+        return;
+        
+        
+})...;
+```
+
+### Start the server
+
+To start the server call listen(). It is a blocking function.
+
+```
+s.listen();
 ```
